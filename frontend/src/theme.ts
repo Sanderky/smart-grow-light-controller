@@ -1,38 +1,52 @@
-import { createTheme } from "@mui/material/styles";
+import { createTheme, type PaletteColor, type PaletteColorOptions } from "@mui/material/styles";
 
 declare module '@mui/material/styles' {
-  interface Theme {
-    box: {
-      bgColor: string;
-      borderRadius: string;
-      borderColor: string;
-
-    };
+  interface Palette {
+    day: PaletteColor;
+    night: PaletteColor;
   }
-
-  interface ThemeOptions {
-    box?: {
-      bgColor?: string;
-      borderRadius: string;
-      borderColor: string;
-
-    };
+  interface PaletteOptions {
+    day?: PaletteColorOptions;
+    night?: PaletteColorOptions;
   }
 }
 
+declare module '@mui/material/ToggleButton' {
+  interface ToggleButtonPropsColorOverrides {
+    day: true;
+    night: true;
+  }
+}
+
+const { palette } = createTheme();
+
+
+const createColor = (mainColor: string) => palette.augmentColor({ color: { main: mainColor } });
 
 const theme = createTheme({
   palette: {
+    mode: 'dark',
+    // primary: {
+    //   main: '#A5D6A7',
+    //   light: '#d7ffd9',
+    //   dark: '#75a478',
+    //   contrastText: 'rgba(0, 0, 0, 0.87)'
+    // },
+    primary: createColor('#5D8736'),
+    day: createColor('#E2852E'),
+    night: createColor('#6594B1'),
+
     text: {
-      primary: '#f6f7f8'
+      primary: '#f6f7f8',
+      secondary: '#a3beb6'
+    },
+    divider: '#a3beb6',
+    background: {
+      paper: '#171717',
+      default: '#1f1f1f'
     }
   },
-  box: {
-    // bgColor: 'rgba(101, 117, 133, 0.16)',
-    bgColor: '#15181b',
-    borderRadius: '8px',
-    borderColor: '#21262b'
-  },
+
   typography: {
     body1: {
       color: '#a3beb6'
@@ -48,13 +62,6 @@ const theme = createTheme({
     }
   },
   components: {
-    MuiDivider: {
-      styleOverrides: {
-        root: {
-          backgroundColor: '#a3beb6',
-        }
-      }
-    },
     MuiAlert: {
       styleOverrides: {
         standardWarning: {

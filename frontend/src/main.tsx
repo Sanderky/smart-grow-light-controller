@@ -9,6 +9,7 @@ import "@fontsource/roboto/500.css";
 import "@fontsource/roboto/700.css";
 import theme from "./theme.ts";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import './styles.css'
 
 const queryClient = new QueryClient();
 

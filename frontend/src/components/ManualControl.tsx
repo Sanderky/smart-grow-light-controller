@@ -1,6 +1,7 @@
 import { Lightbulb, LightbulbOutline } from "@mui/icons-material"
-import { Alert, Box, Stack, Typography, IconButton } from "@mui/material"
+import { Alert, Stack, Typography, IconButton } from "@mui/material"
 import { useState } from "react"
+import BoxWrapper from "./BoxWrapper"
 
 const useManualControl = () => {
 
@@ -20,13 +21,7 @@ const ManualControl = () => {
   const { lightStatus, handleToggleLightStatus } = useManualControl()
 
   return (
-    <Box
-      sx={(theme) => ({
-        borderRadius: theme.box.borderRadius,
-        bgcolor: theme.box.bgColor,
-        p: 2,
-        border: `2px solid ${theme.box.borderColor}`
-      })}
+    <BoxWrapper
     >
       <Typography variant="h3">Manualne sterowanie</Typography>
       <Stack direction={'row'} justifyContent={'center'}>
@@ -38,10 +33,10 @@ const ManualControl = () => {
           {
             lightStatus ?
               (
-                <Lightbulb sx={(theme) => ({ fontSize: 60, color: theme.palette.text.primary, border: `2px solid ${theme.palette.text.primary}`, borderRadius: '100%', p: 1 })} />
+                <Lightbulb sx={(theme) => ({ fontSize: 60, color: theme.palette.primary.main, border: `2px solid ${theme.palette.primary.main}`, borderRadius: '100%', p: 1 })} />
 
               ) : (
-                <LightbulbOutline sx={(theme) => ({ fontSize: 60, color: theme.palette.text.primary, border: `2px solid ${theme.palette.text.primary}`, borderRadius: '100%', p: 1 })} />
+                <LightbulbOutline sx={(theme) => ({ fontSize: 60, color: theme.palette.primary.main, border: `2px solid ${theme.palette.primary.main}`, borderRadius: '100%', p: 1 })} />
               )
           }
         </IconButton>
@@ -51,7 +46,7 @@ const ManualControl = () => {
         Oświetlenie zmieni swój stan zgodnie z harmonogramem.
       </Alert>
 
-    </Box>
+    </BoxWrapper>
   )
 }
 
