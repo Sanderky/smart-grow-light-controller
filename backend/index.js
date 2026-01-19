@@ -68,7 +68,7 @@ app.get("/api/status", (req, res) => {
   let nextChange = null;
   let minMinutes = Infinity;
 
-  if (dbData.settings.scheduleEnabled && dbData.events.length > 0) {
+  if (dbData.events.length > 0) {
     dbData.events.forEach((event) => {
       const [h, m] = event.time.split(":").map(Number);
 
@@ -84,6 +84,7 @@ app.get("/api/status", (req, res) => {
             action: event.action,
             minutesLeft: minMinutes,
             time: event.time,
+            day: dayIndex
           };
         }
       });

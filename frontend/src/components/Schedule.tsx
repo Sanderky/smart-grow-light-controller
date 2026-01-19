@@ -16,6 +16,8 @@ import {
   alpha,
   type Theme,
   Switch,
+  CircularProgress,
+  Skeleton,
 } from "@mui/material";
 import {
   Delete as DeleteIcon,
@@ -34,11 +36,14 @@ import "dayjs/locale/pl";
 import BoxWrapper from "./BoxWrapper";
 import { plPL } from "@mui/x-date-pickers/locales";
 
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { scheduleApi, type NewScheduleEvent } from "../api/schedule";
+
 dayjs.locale("pl");
 
 type ActionType = "ON" | "OFF";
 
-interface ScheduleEvent {
+interface ScheduleEventUI {
   id: number;
   days: number[];
   time: Dayjs | null;
@@ -130,21 +135,61 @@ const DayCircle = ({
 
 const Schedule = () => {
   const theme = useTheme();
+  const queryClient = useQueryClient();
 
-  const [events, setEvents] = useState<ScheduleEvent[]>([
-    {
-      id: 1,
-      days: [1, 2, 3, 4, 5],
-      time: dayjs().set("hour", 7).set("minute", 0),
-      action: "ON",
+  const {
+    data: events = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["scheduleRules"],
+    queryFn: scheduleApi.getRules,
+    select: (apiData) =>
+      apiData.map((rule) => ({
+        ...rule,
+        time: dayjs(rule.time, "HH:mm"),
+      })),
+  });
+
+  const { data: status } = useQuery({
+    queryKey: ["systemStatus"],
+    queryFn: scheduleApi.getStatus,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: scheduleApi.addRule,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduleRules"] });
+      queryClient.invalidateQueries({ queryKey: ["systemStatus"] });
+      resetForm();
     },
-    {
-      id: 2,
-      days: [1, 2, 3, 4, 5],
-      time: dayjs().set("hour", 23).set("minute", 0),
-      action: "OFF",
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, rule }: { id: number; rule: NewScheduleEvent }) =>
+      scheduleApi.updateRule(id, rule),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduleRules"] });
+      queryClient.invalidateQueries({ queryKey: ["systemStatus"] });
+      resetForm();
     },
-  ]);
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: scheduleApi.deleteRule,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduleRules"] });
+      queryClient.invalidateQueries({ queryKey: ["systemStatus"] });
+      if (editingId) resetForm();
+    },
+  });
+
+  const toggleScheduleMutation = useMutation({
+    mutationFn: scheduleApi.toggleSchedule,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["systemStatus"] });
+    },
+  });
 
   const [formDays, setFormDays] = useState<number[]>([]);
   const [formTime, setFormTime] = useState<Dayjs | null>(dayjs());
@@ -169,27 +214,20 @@ const Schedule = () => {
   const handleSave = () => {
     if (!formTime || formDays.length === 0) return;
 
+    const payload: NewScheduleEvent = {
+      days: formDays,
+      time: formTime.format("HH:mm"),
+      action: formAction,
+    };
+
     if (editingId) {
-      setEvents((prev) =>
-        prev.map((ev) =>
-          ev.id === editingId
-            ? { ...ev, days: formDays, time: formTime, action: formAction }
-            : ev,
-        ),
-      );
+      updateMutation.mutate({ id: editingId, rule: payload });
     } else {
-      const newEvent: ScheduleEvent = {
-        id: Date.now(),
-        days: formDays,
-        time: formTime,
-        action: formAction,
-      };
-      setEvents((prev) => [...prev, newEvent]);
+      addMutation.mutate(payload);
     }
-    resetForm();
   };
 
-  const handleEditClick = (ev: ScheduleEvent) => {
+  const handleEditClick = (ev: ScheduleEventUI) => {
     setEditingId(ev.id);
     setFormDays(ev.days);
     setFormTime(ev.time);
@@ -197,9 +235,14 @@ const Schedule = () => {
   };
 
   const handleDelete = (id: number) => {
-    setEvents((prev) => prev.filter((ev) => ev.id !== id));
-    if (editingId === id) resetForm();
+    deleteMutation.mutate(id);
   };
+
+  const handleSwitchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    toggleScheduleMutation.mutate(event.target.checked);
+  };
+
+  const isSaving = addMutation.isPending || updateMutation.isPending;
 
   return (
     <BoxWrapper>
@@ -218,11 +261,29 @@ const Schedule = () => {
           sx={{ mb: 3 }}
         >
           <Typography variant="h3">Harmonogram</Typography>
-          <Switch defaultChecked />
+
+          <Switch
+            checked={status?.scheduleEnabled ?? false}
+            onChange={handleSwitchChange}
+            disabled={toggleScheduleMutation.isPending || isLoading || isError}
+          />
         </Stack>
 
         <Stack spacing={2} sx={{ mb: 4 }}>
-          {events.length > 0 ? (
+          {isLoading ? (
+            <Box>
+              <Skeleton
+                variant="rectangular"
+                height={100}
+                sx={{ borderRadius: 2 }}
+              />
+              <Skeleton
+                variant="rectangular"
+                height={100}
+                sx={{ mt: 2, borderRadius: 2 }}
+              />
+            </Box>
+          ) : events.length > 0 ? (
             events.map((ev) => {
               const isOn = ev.action === "ON";
 
@@ -233,7 +294,9 @@ const Schedule = () => {
                     bgcolor: isOn
                       ? alpha(theme.palette.day.main, 0.16)
                       : alpha(theme.palette.night.main, 0.16),
-                    borderLeft: `6px solid ${isOn ? theme.palette.day.main : theme.palette.night.main}`,
+                    borderLeft: `6px solid ${
+                      isOn ? theme.palette.day.main : theme.palette.night.main
+                    }`,
                     outline:
                       editingId === ev.id
                         ? `3px solid ${theme.palette.text.primary}`
@@ -269,7 +332,7 @@ const Schedule = () => {
                         />
                       </Stack>
 
-                      <Stack direction="row" gap={1} flexWrap={'wrap'}>
+                      <Stack direction="row" gap={1} flexWrap={"wrap"}>
                         {DAYS_UI.map((day) => (
                           <DayCircle
                             mode={isOn ? "day" : "night"}
@@ -298,11 +361,16 @@ const Schedule = () => {
                         <IconButton
                           onClick={() => handleDelete(ev.id)}
                           size="small"
+                          disabled={deleteMutation.isPending}
                         >
-                          <DeleteIcon
-                            sx={{ color: "text.primary" }}
-                            fontSize="small"
-                          />
+                          {deleteMutation.isPending && editingId === ev.id ? (
+                            <CircularProgress size={20} />
+                          ) : (
+                            <DeleteIcon
+                              sx={{ color: "text.primary" }}
+                              fontSize="small"
+                            />
+                          )}
                         </IconButton>
                       </Tooltip>
                     </Stack>
@@ -381,7 +449,7 @@ const Schedule = () => {
                 gap={1}
                 justifyContent={"center"}
                 sx={{ mt: 2 }}
-                flexWrap={'wrap'}
+                flexWrap={"wrap"}
               >
                 {DAYS_UI.map((day) => (
                   <DayCircle
@@ -407,6 +475,7 @@ const Schedule = () => {
                   size="small"
                   color="inherit"
                   variant="outlined"
+                  disabled={isSaving}
                 >
                   Anuluj
                 </Button>
@@ -414,9 +483,10 @@ const Schedule = () => {
               <Button
                 variant="contained"
                 size={"small"}
+                loading={isSaving}
                 startIcon={editingId ? <SaveIcon /> : <AddIcon />}
                 onClick={handleSave}
-                disabled={formDays.length === 0}
+                disabled={formDays.length === 0 || isLoading || isError}
                 color={"primary"}
               >
                 {editingId ? "Zapisz" : "Dodaj"}

@@ -1,94 +1,150 @@
-import { Box, Divider, Stack, Typography } from "@mui/material";
-import { LocalFlorist } from "@mui/icons-material";
+import { Box, Divider, Stack, Typography, Skeleton } from "@mui/material";
+import { ErrorOutline, LocalFlorist } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { fetchTime } from "../api/time";
+import { scheduleApi } from "../api/schedule";
 import BoxWrapper from "./BoxWrapper";
-
-const useServerTime = () => {
-  const [currentTime, setCurrentTime] = useState<Date | null>(null);
-
-  const { data: serverTime } = useQuery<Date, Error>({
-    queryKey: ["serverTime"],
-    queryFn: fetchTime,
-    refetchInterval: 1000 * 60,
-  });
-
-  useEffect(() => {
-    if (serverTime) {
-      setCurrentTime(serverTime);
-
-      const interval = setInterval(() => {
-        setCurrentTime((prevTime) =>
-          prevTime ? new Date(prevTime.getTime() + 1000) : null,
-        );
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [serverTime]);
-
-  const dateString = useMemo(() => {
-    return currentTime ? currentTime.toLocaleDateString("pl-PL") : null;
-  }, [currentTime ? currentTime.toDateString() : null]);
-  const timeString = currentTime
-    ? currentTime.toLocaleTimeString("pl-PL")
-    : null;
-
-  return {
-    dateString,
-    timeString,
-  };
-};
+import dayjs from "dayjs";
 
 const Info = () => {
-  const { dateString, timeString } = useServerTime();
+  const {
+    data: status,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["systemStatus"],
+    queryFn: scheduleApi.getStatus,
+    refetchInterval: 1000
+  });
+
+  const logo = (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        columnGap: 1,
+        mb: 2,
+      }}
+    >
+      <Typography variant="h1" sx={{ fontSize: "1.5rem" }}>
+        Smart Grow
+        <Typography
+          component="span"
+          variant="h1"
+          sx={{ color: "primary.main", ml: 1, fontSize: "1.5rem" }}
+        >
+          Light Controller
+        </Typography>
+      </Typography>
+      <LocalFlorist
+        fontSize="medium"
+        sx={(theme) => ({ color: theme.palette.primary.main })}
+      />
+    </Box>
+  );
+
+  if (isLoading) {
+    return (
+      <BoxWrapper>
+        {logo}
+        <Skeleton
+          variant="rectangular"
+          height={100}
+          sx={{ mt: 2, borderRadius: 2 }}
+        />
+      </BoxWrapper>
+    );
+  }
+
+  if (isError || !status) {
+    return (
+      <BoxWrapper>
+        {logo}
+        <Stack direction="row" gap={1}>
+          <ErrorOutline color="error" />
+          <Typography color="error">Błąd połączenia ze sterownikiem</Typography>
+        </Stack>
+      </BoxWrapper>
+    );
+  }
+
+  const renderNextEvent = () => {
+    if (!status?.nextEvent) return "Brak wpisów w harmonogramie";
+
+    const { action, minutesLeft, time, day } = status.nextEvent;
+
+    const days = Math.floor(minutesLeft / (24 * 60));
+    const hours = Math.floor((minutesLeft % (24 * 60)) / 60);
+    const mins = (minutesLeft % 60) + 1;
+
+    let timeText = "";
+
+    if (days > 0) {
+      const suffix = days === 1 ? "dzień" : "dni";
+      timeText += `${days} ${suffix} `;
+    }
+
+    if (hours > 0 || days > 0) {
+      timeText += `${hours}h `;
+    }
+
+    timeText += `${mins}min`;
+
+    const actionText = action === "ON" ? "włączenie" : "wyłączenie";
+    const dayText = days > 0 ? " " + dayjs().day(day).format("dddd") : "";
+
+    const timeDisplay = time.length > 5 ? time.slice(0, 5) : time;
+
+    return `Najbliższe ${actionText} za ${timeText} (godz. ${timeDisplay}${dayText})`;
+  };
 
   return (
     <BoxWrapper>
-      <Box
-        sx={{
-          display: "flex",
-          direction: "row",
-          columnGap: 1,
-        }}
-      >
-        <Typography variant="h1" sx={{ fontSize: "1.5rem" }}>
-          Smart Grow{" "}
+      <Stack spacing={1.5} sx={{ mb: 2 }}>
+        {logo}
+
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography variant="body1">Status oświetlenia:</Typography>
           <Typography
-            variant="h1"
-            sx={{ fontSize: "1.5rem", color: "primary.main" }}
-            component={"span"}
+            variant="body1"
+            fontWeight="bold"
+            color={status.lightState === "ON" ? "success.main" : "error.main"}
           >
-            Light Controller
+            {status.lightState === "ON" ? "włączone" : "wyłączone"}
           </Typography>
+        </Box>
+
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography variant="body1">Harmonogram:</Typography>
+          <Typography
+            variant="body1"
+            fontWeight="bold"
+            color={status.scheduleEnabled ? "success.main" : "error.main"}
+          >
+            {status.scheduleEnabled ? "aktywny" : "nieaktywny"}
+          </Typography>
+        </Box>
+
+        <Typography
+          variant="body1"
+          sx={{ fontStyle: "italic", color: "text.secondary" }}
+        >
+          {renderNextEvent()}
         </Typography>
-        <LocalFlorist
-          fontSize="medium"
-          sx={(theme) => ({ color: theme.palette.primary.main, mt: 0.3 })}
-        />
-      </Box>
-      <Stack
-        direction={"column"}
-        spacing={1}
-        sx={{
-          my: 2,
-        }}
-      >
-        <Typography>Status oświetlenia: włączone</Typography>
-        <Typography>Harmonogram aktywny</Typography>
-        <Typography>Najbiższe wyłączenie za 2 godziny</Typography>
       </Stack>
+
       <Divider />
-      <Stack
-        direction={"column"}
-        spacing={1}
-        sx={{
-          mt: 2,
-        }}
-      >
-        <Typography>Data serwera: {dateString ?? "- -"}</Typography>
-        <Typography>Godzina serwera: {timeString ?? "- -"}</Typography>
+
+      <Stack spacing={0.5} sx={{ mt: 2 }}>
+        <Box display="flex" sx={{ gap: 1 }}>
+          <Typography color="text.secondary">Data serwera:</Typography>
+          <Typography fontWeight="bold">{status.serverDate}</Typography>
+        </Box>
+        <Box display="flex" sx={{ gap: 1 }}>
+          <Typography color="text.secondary">Godzina serwera:</Typography>
+          <Typography fontWeight="bold">
+            {status.serverTime?.slice(0, 5)}
+          </Typography>
+        </Box>
       </Stack>
     </BoxWrapper>
   );
