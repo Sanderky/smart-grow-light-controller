@@ -196,7 +196,7 @@ setInterval(() => {
       }
     }
   });
-}, 60 * 1000);
+}, 1000);
 
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
